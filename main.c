@@ -10,21 +10,20 @@
 
 void timer1_on();
 void INT0_on(); //schaltet nur den INT0 "an"
-void INT0_falling(); //schaltet den INT0 auf falling flank detection
-void INT0_rising(); //schaltet den INT0 auf rising flank detection
-uint8_t signal; //hier steht drin, was der Empfänger findet
-uint16_t time_rising; //darin wird die zeit der steigenden Flanke notiert
-uint16_t time_diff; //darin wird die zeit der fallenden Flanke notiert
-uint8_t has_fallen; //ein bool, ob er gerade gefallen ist oder nicht
-uint8_t last_bit; //hier steht die 1 wenn wir eine gefunden haben.
+uint16_t int_begin;
+uint16_t signaldauer;
+uint8_t signal;
+uint8_t debug;
+
 
 int main(void)
 {
   DDRC = 0xFF; //Port C auf Output setzen
   timer1_on(); //schalte den Timer für den 1Hz Interrupt an 
   INT0_on();
-  INT0_rising();
   sei();
+  debug = 0;
+  signal = 2;
 
   while(42){
   
@@ -32,38 +31,47 @@ int main(void)
 }
 
 SIGNAL(SIG_OUTPUT_COMPARE1A){ //Timerinterrupt für LEDs
-  if (has_fallen == 1){
-   if (last_bit == 1){
-    signal = (signal << 1);
-    last_bit = 0;
-   }
-   else
-    signal = (signal << 0);  
+  switch(signal){
+    case 2:
+      PORTC = 0xFF;
+    case 1:
+      PORTC = 0x0F;
+    case 0:
+      PORTC = 0xF0;
   }
-  //PORTC = signal;
 }
 
 ISR(INT0_vect){
-  switch(ISC00){ //wir schauen ob wir gerade auf fallende oder steigende flanke achten
-    case 1: //steigende Flanke hat den Interrupt ausgelost
-      has_fallen = 0;
-      time_rising = TCNT1;
-      INT0_falling();
+  /**
+  switch(INT0){
+    case 1: //wenn der INT high ist
+      int_begin = TCNT1;
+    case 0: //wenn der INT low ist
+      if (TCNT1 > int_begin) // Wenn der Timerstand größer als der zuletzt "startende" Interrupt ist
+       signaldauer = TCNT1 - int_begin; //wie lange war der Interrupt?
+      if (TCNT1 <= int_begin) // wenn der Timer zwischen den INTs resettet wurde
+       signaldauer = int_begin - TCNT1; //wie lange war der Interrupt?
+      if ((signaldauer > 1475) && (signaldauer < 1650)){
+       signal = 0; // wenn das Signal ungefähr 100msec war -> 0
+       break;
+      } 
+      if ((signaldauer > 3037) && (signaldauer < 3213)){
+        signal = 1; // wenn das Signal ungefähr 200msec war -> 1
+        break;
+        } 
+        signal = 2; //wenn komisch
+    }
+    **/
+    
+    if (debug == 1){
       PORTC = 0x0F;
-      break;
-    case 0: //fallende Flanke hat den Interrupt ausgelöst      
-      if (TCNT1 >= time_rising)
-        time_diff = TCNT1 - time_rising;
-      else
-        time_diff = time_rising - TCNT1;
-      if ((time_diff > 3000) && (time_diff < 3250)){
-        last_bit = 1;
-      }
-      has_fallen = 1;
-      INT0_rising();
+      debug = 0;
+    }
+    else if (debug == 0){
       PORTC = 0xF0;
-      break;
-  }
+      debug = 1;
+    } 
+    
 }
 
 void timer1_on(){
@@ -76,14 +84,6 @@ void timer1_on(){
 
 void INT0_on(){
   GICR |= (1 << INT0);
-}
-
-void INT0_rising(){
+  MCUCR |= (0 << ISC01);
   MCUCR |= (1 << ISC00);
-  MCUCR |= (1 << ISC01);
-  }
-  
-void INT0_falling(){
-  MCUCR |= (0 << ISC00);
-  MCUCR |= (1 << ISC01);
-  }
+}

@@ -16,13 +16,16 @@ uint16_t signaldauer;
 uint8_t signal;
 uint8_t debug;
 uint8_t foobar123;
-
+char foo[10];
 
 int main(void) {
     DDRC = 0xFF; //Port C auf Output setzen
     DDRD = 0xC0; //ersten beiden pins auf ausgang, rest eingang
+
+    // see
+    // http://www.mikrocontroller.net/articles/AVR-Tutorial:_IO-Grundlagen#Pullup-Widerstand
     DDRD |= (1 << PD3);
-    PORTD |= (1 << PD3);
+    /*PORTD |= (1 << PD3);*/
   
     debug = 0;
     signal = 2;
@@ -59,17 +62,17 @@ int main(void) {
 }
 
 SIGNAL(SIG_OUTPUT_COMPARE1A) {
-    PORTC ^= (1 << PD6); // zu schnell fürs auge, leuchtet daher nur
+    PORTC ^= (1 << PD7);
 }
 
 ISR(TIMER0_COMP_vect) { //timerinterrupt für LEDs
     foobar123++;
-    if (PIND & 4)
-      uart_puts("1");
-    else uart_puts("0");
-    if (foobar123 == 20){
-        uart_puts("\r\n");
-    foobar123 = 0;
+    if (foobar123 == 50){
+        if ((PIND & 0x08) == 0x08) {
+          uart_puts("1");
+        } else uart_puts("0");
+        uart_puts(" \r\n");
+        foobar123 = 0;
     }
 }
 
@@ -80,8 +83,7 @@ ISR(INT1_vect){
       int_begin = TCNT1;
     case 0: //wenn der INT low ist
       if (TCNT1 > int_begin) // Wenn der Timerstand größer als der zuletzt "startende" Interrupt ist
-       signaldauer = TCNT1 - int_begin; //wie lange war der Interrupt?
-      if (TCNT1 <= int_begin) // wenn der Timer zwischen den INTs resettet wurde
+       signaldauer = TCNT1 - int_begin; //wie lange war der Interrupt?  if (TCNT1 <= int_begin) // wenn der Timer zwischen den INTs resettet wurde
        signaldauer = int_begin - TCNT1; //wie lange war der Interrupt?
       if ((signaldauer > 1) && (signaldauer < 1650)){
        signal = 0; // wenn das Signal ungefähr 100msec war -> 0

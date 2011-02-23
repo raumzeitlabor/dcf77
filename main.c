@@ -10,58 +10,63 @@
 #include <avr/io.h>
 #include <stdlib.h>
 
-void timer1_on();
-void INT0_on(); //schaltet nur den INT0 "an"
+void uart_puts();
 uint16_t int_begin;
 uint16_t signaldauer;
 uint8_t signal;
 uint8_t debug;
 
 
-int main(void)
-{
-  DDRC = 0xFF; //Port C auf Output setzen
-  timer1_on(); //schalte den Timer für den 1Hz Interrupt an 
-  INT1_on();
-  sei();
-  debug = 0;
-  signal = 2;
-
+int main(void) {
+    DDRC = 0xFF; //Port C auf Output setzen
+    DDRD = 0xC0; //ersten beiden pins auf ausgang, rest eingang
+    DDRD |= (1 << PD3);
+    PORTD |= (1 << PD3);
+  
+    debug = 0;
+    signal = 2;
+  
+    sei(); // interrupts aktivieren
+  
+    /* initialize timer0 (10ms) */
+    TCCR0 |= (1 << WGM01) | (0 << WGM00);  // ctc modus
+    TCCR0 |= (1 << CS02) | (0 << CS01) | (0 << CS00); // 256 prescaler
+    TIMSK |= (1 << OCIE0); // interrupt aktivieren
+    OCR0 = (uint8_t) 624; // 625 = 10ms
+ 
+    /* initialize timer1 (1s) */
+    TCCR1B |= (1 << WGM12); //CTC Modus
+    TCCR1B |= (1 << CS12) | (1 << CS10); // 1024 prescaler
+    TIMSK |= (1 << OCIE1A); // Interrupt auslösen wenn CTC-Match
+    OCR1A = (uint16_t) 15624; //Schwellenwert für CTC -> Interrupt 1Hz
+   
+    // initialize INT1 (external interrupt)
+    GICR |= (1 << INT1);
+    MCUCR |= (0 << ISC11);
+    MCUCR |= (1 << ISC10);
+  
     // initialize UART
     UCSRB |= (1 << TXEN) | (1 << TXCIE); // tx enable, tx complete irq
     UCSRB |= (1 << RXEN) | (1 << RXCIE); // rx enable, rx complete irc
     UCSRC |= (1 << UCSZ1) | (1 << UCSZ0); // 8bit character size
     UBRRH = UBRRH_VALUE; // UBRRH vor UBRRL
     UBRRL = UBRRL_VALUE;
-
-  uart_puts("fickdsch\r\n");
-
-  while(42){
   
-  }
+    uart_puts("init\r\n");
+  
+    while(42) {}
 }
 
-SIGNAL(SIG_OUTPUT_COMPARE1A){ //Timerinterrupt für LEDs
-  /*while (!(UCSRA & (1<<UDRE)));
-  UDR = (TCNT1 & 0x0f)+48;
-  while (!(UCSRA & (1<<UDRE)));
-  UDR = '\r';
-  while (!(UCSRA & (1<<UDRE)));
-  UDR = '\n';*/
+ISR(TIMER0_COMP_vect) {
+    PORTC ^= (1 << PD6); // zu schnell fürs auge, leuchtet daher nur
+}
 
-  switch(signal){
-    case 2:
-      //PORTC = 0xFF;
-    case 1:
-      PORTC = 0x0F;
-    case 0:
-      PORTC = 0xF0;
-  }
+SIGNAL(SIG_OUTPUT_COMPARE1A) { //timerinterrupt für LEDs
+    PORTC ^= (1 << PD7); // timer aktivität anzeigen
 }
 
 ISR(INT1_vect){
-  while (!(UCSRA & (1<<UDRE)));
-  uart_puts("arsch.affe.\r\n");
+    PORTC ^= (1 << PD0);
   /*switch(INT1){
     case 1: //wenn der INT high ist
       int_begin = TCNT1;
@@ -93,18 +98,7 @@ ISR(INT1_vect){
     */
 }
 
-void timer1_on(){
-  TCCR1B |= (1 << WGM12); //CTC Modus
-  TCCR1B |= (1 << CS12); // Prescaler auf 1024
-  TCCR1B |= (1 << CS10); // Prescaler auf 1024
-  TIMSK |= (1 << OCIE1A); // Interrupt auslösen wenn CTC-Match
-  OCR1A = 15624; //Schwellenwert für CTC -> Interrupt 1Hz
-}
-
-void INT1_on(){
-  GICR |= (1 << INT1);
-  MCUCR |= (1 << ISC11);
-  MCUCR |= (1 << ISC10);
+ISR (USART_TXC_vect) {
 }
 
 void uart_putc(const char c) {
@@ -124,8 +118,4 @@ void uart_puti(const uint16_t foo) {
   for (i = 0; i < 16; i++) {
     UDR = (foo << 1)+48;
   }
-}
-
-ISR (USART_TXC_vect) {
-    PORTC = 0xff;
 }

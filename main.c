@@ -15,6 +15,7 @@ uint16_t int_begin;
 uint16_t signaldauer;
 uint8_t signal;
 uint8_t debug;
+uint8_t foobar123;
 
 
 int main(void) {
@@ -57,12 +58,19 @@ int main(void) {
     while(42) {}
 }
 
-ISR(TIMER0_COMP_vect) {
+SIGNAL(SIG_OUTPUT_COMPARE1A) {
     PORTC ^= (1 << PD6); // zu schnell fürs auge, leuchtet daher nur
 }
 
-SIGNAL(SIG_OUTPUT_COMPARE1A) { //timerinterrupt für LEDs
-    PORTC ^= (1 << PD7); // timer aktivität anzeigen
+ISR(TIMER0_COMP_vect) { //timerinterrupt für LEDs
+    foobar123++;
+    if (PIND & 4)
+      uart_puts("1");
+    else uart_puts("0");
+    if (foobar123 == 20){
+        uart_puts("\r\n");
+    foobar123 = 0;
+    }
 }
 
 ISR(INT1_vect){

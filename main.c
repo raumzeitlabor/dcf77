@@ -20,44 +20,43 @@ char foo[10];
 
 int main(void) {
     DDRC = 0xFF; //Port C auf Output setzen
-    DDRD = 0xC0; //ersten beiden pins auf ausgang, rest eingang
+    DDRD = 0x00;
 
     // see
     // http://www.mikrocontroller.net/articles/AVR-Tutorial:_IO-Grundlagen#Pullup-Widerstand
-    DDRD |= (1 << PD3);
-    /*PORTD |= (1 << PD3);*/
-  
+    PORTD |= (1 << PD3);
+
     debug = 0;
     signal = 2;
-  
+
     sei(); // interrupts aktivieren
-  
+
     /* initialize timer0 (10ms) */
     TCCR0 |= (1 << WGM01) | (0 << WGM00);  // ctc modus
     TCCR0 |= (1 << CS02) | (0 << CS01) | (0 << CS00); // 256 prescaler
     TIMSK |= (1 << OCIE0); // interrupt aktivieren
     OCR0 = (uint8_t) 624; // 625 = 10ms
- 
+
     /* initialize timer1 (1s) */
-    TCCR1B |= (1 << WGM12); //CTC Modus
+    TCCR1B |= (1 << WGM12); //CTC Modus*/
     TCCR1B |= (1 << CS12) | (1 << CS10); // 1024 prescaler
     TIMSK |= (1 << OCIE1A); // Interrupt auslösen wenn CTC-Match
     OCR1A = (uint16_t) 15624; //Schwellenwert für CTC -> Interrupt 1Hz
-   
+
     // initialize INT1 (external interrupt)
-    GICR |= (1 << INT1);
+    /*GICR |= (1 << INT1);
     MCUCR |= (0 << ISC11);
-    MCUCR |= (1 << ISC10);
-  
+    MCUCR |= (1 << ISC10);*/
+
     // initialize UART
     UCSRB |= (1 << TXEN) | (1 << TXCIE); // tx enable, tx complete irq
     UCSRB |= (1 << RXEN) | (1 << RXCIE); // rx enable, rx complete irc
     UCSRC |= (1 << UCSZ1) | (1 << UCSZ0); // 8bit character size
     UBRRH = UBRRH_VALUE; // UBRRH vor UBRRL
     UBRRL = UBRRL_VALUE;
-  
+
     uart_puts("init\r\n");
-  
+
     while(42) {}
 }
 
@@ -68,9 +67,10 @@ SIGNAL(SIG_OUTPUT_COMPARE1A) {
 ISR(TIMER0_COMP_vect) { //timerinterrupt für LEDs
     foobar123++;
     if (foobar123 == 50){
+        sprintf(foo, "%x", PIND & 0x08);
         if ((PIND & 0x08) == 0x08) {
-          uart_puts("1");
-        } else uart_puts("0");
+          uart_puts(foo);
+        } else uart_puts(foo);
         uart_puts(" \r\n");
         foobar123 = 0;
     }
@@ -121,11 +121,4 @@ void uart_puts(const char* str) {
     for (walk = str; *walk != '\0'; walk++) {
         uart_putc(*walk);
     }
-}
-
-void uart_puti(const uint16_t foo) {
-  int i = 0;
-  for (i = 0; i < 16; i++) {
-    UDR = (foo << 1)+48;
-  }
 }
